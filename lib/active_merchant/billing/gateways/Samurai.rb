@@ -1,7 +1,9 @@
-require 'samurai'
+begin  
+  require 'samurai'
 rescue LoadError
   raise "Could not load the samurai gem.  Use `gem install samurai` to install it."
 end
+
 
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
@@ -16,163 +18,98 @@ module ActiveMerchant #:nodoc:
       self.money_format = :cents
       
       def initialize(options = {})
-        requires!(options, :login)
+        requires!(options, :merchant_key, :merchant_password, :processor_token)
         @api_key = options[:login]
-        super
-      end
-      
-      def authorize(money, creditcard, options = {})
-        purchase(money, creditcard, options.merge(:uncaptured => true))
-      end
-      
-      def purchase(money, creditcard, options = {})
-        post = {}
-
-        add_amount(post, money, options)
-        add_creditcard(post, creditcard, options)
-        add_customer(post, options)
-        add_customer_data(post, options)
-        add_flags(post, options)
-
-        raise ArgumentError.new("Customer or Credit Card required.") if !post[:card] && !post[:customer]
-
-        commit('charges', post)
-      end                 
-    
-      def capture(money, identification, options = {})
-        commit("charges/#{CGI.escape(identification)}/capture", {})
-      end
-
-      def void(identification, options={})
-        commit("charges/#{CGI.escape(identification)}/refund", {})
-      end
-
-      def refund(money, identification, options = {})
-        post = {}
-
-        post[:amount] = amount(money) if money
-
-        commit("charges/#{CGI.escape(identification)}/refund", post)
-      end
-
-      def store(creditcard, options={})
-        post = {}
-        add_creditcard(post, creditcard, options)
-        add_customer_data(post, options)
-
-        if options[:customer]
-          commit("customers/#{CGI.escape(options[:customer])}", post)
-        else
-          commit('customers', post)
-        end
-      end
-      
-      private
-      
-      def add_amount(post, money, options)
-        post[:amount] = amount(money)
-        post[:currency] = (options[:currency] || currency(money)).downcase
-      end
-      
-      def add_billing_reference(post, options)
-        post[:description] = options[:description]
-      end
-
-      def add_customer_reference(post, options)
-        post[:description] = options[:description]
-      end
-
-      def add_address(post, options)
-        return unless post[:card] && post[:card].kind_of?(Hash)
-        if address = options[:billing_address] || options[:address]
-          post[:credit_card][:address_1] = address[:address1] if address[:address1]
-          post[:credit_card][:address_2] = address[:address2] if address[:address2]
-          post[:credit_card][:country] = address[:country] if address[:country]
-          post[:credit_card][:zip] = address[:zip] if address[:zip]
-          post[:credit_card][:state] = address[:state] if address[:state]
-        end
-      end
-
-      def add_creditcard(post, creditcard, options)
-        if creditcard.respond_to?(:number)
-          card = {}
-          card[:card_number] = creditcard.number
-          card[:expiry_month] = creditcard.month
-          card[:expiry_year] = creditcard.year
-          card[:cvv] = creditcard.verification_value if creditcard.verification_value?
-          card[:name] = creditcard.name if creditcard.name
-          post[:card] = card
-
-          add_address(post, options)
-        elsif creditcard.kind_of?(String)
-          post[:credit_card] = creditcard
-        end
-      end
-
-      def add_customer(post, options)
-        post[:customer] = options[:customer] if options[:customer] && !post[:credit_card]
-      end
-
-      def post_data(params)
-        params.map do |key, value|
-          next if value.blank?
-          if value.is_a?(Hash)
-            h = {}
-            value.each do |k, v|
-              h["#{key}[#{k}]"] = v unless v.blank?
-            end
-            post_data(h)
-          else
-            "#{key}=#{CGI.escape(value.to_s)}"
-          end
-        end.compact.join("&")
-      end
-
-      def headers
-        @@ua ||= XML.dump({
-          :bindings_version => ActiveMerchant::VERSION,
-          :lang => 'ruby',
-          :lang_version => "#{RUBY_VERSION} p#{RUBY_PATCHLEVEL} (#{RUBY_RELEASE_DATE})",
-          :platform => RUBY_PLATFORM,
-          :publisher => 'active_merchant',
-          :uname => (RUBY_PLATFORM =~ /linux|darwin/i ? `uname -a 2>/dev/null`.strip : nil)
-        })
-
-        {
-          "Authorization" => "Basic " + ActiveSupport::Base64.encode64(@merchant_key.to_s + ":" + @merchant_password.to_s ).strip,
-          "User-Agent" => "samurai/v1 ActiveMerchantBindings/#{ActiveMerchant::VERSION}",
-          "SamuraiAM-Client-User-Agent" => @@ua
-        }
-      end
-
-      def commit(url, parameters, method=:post)
-        raw_response = response = nil
-        success = false
-        begin
-          raw_response = ssl_request(method, LIVE_URL + url, post_data(parameters), headers)
-          response = parse(raw_response)
-          success = !response.key?("error")
-      end
-
-      def response_error(raw_response)
-        begin
-          parse(raw_response)
-        rescue XML::ParserError
-          xml_error(raw_response)
-        end
-      end
         
-
-      def xml_error(raw_response)
-        msg = 'No valid response received from the Samurai API.  Please contact support if you continue to receive this message.'
-        msg += "  (The raw response returned by the API was #{raw_response.inspect})"
-        {
-          "error" => {
-            "message" => msg
-          }
+        Samurai.options = {
+          :merchant_key => options[:merchant_key], 
+          :merchant_password => options[:merchant_password], 
+          :processor_token => options[:processor_token]
         }
       end
-    end
-  end
-end
       
+      
+      def purchase(money, credit_card_or_vault_id, options = {})
+        if credit_card_or_vault_id.is_a?(ActiveMerchant::Billing::CreditCard)
+          store_result = store(credit_card_or_vault_id, options)
+          return store_result if !store_result.success?
+          credit_card_or_vault_id = store_result.params["payment_method_token"]
+        end
+        result = Samurai::Processor.purchase(credit_card_or_vault_id, money, {:billing_reference =>   options[:billing_reference],:customer_reference =>  options[:customer_reference],:custom => options[:custom],:descriptor => options[:descriptor]})
+        handle_result(result)
+      end
+      
+      def capture(money, authorization_id, options = {})
+        authorization = Samurai::Transaction.find(authorization_id)  # get the authorization created previously
+        capture = money.nil? ? @capture = authorization.capture : authorization.capture(money)  
+        handle_result(capture)
+      end
+            
+      def credit(money, transaction_id, options = {})
+        transaction = Samurai::Transaction.find(transaction_id) # get the transaction
+        credit = money.nil? ? transaction.credit : transaction.credit(money)  
+        handle_result(credit)
+      end
+      
+      def authorize(money, credit_card_or_vault_id, options = {})
+        if credit_card_or_vault_id.is_a?(ActiveMerchant::Billing::CreditCard)
+          store_result = store(credit_card_or_vault_id, options)
+          return store_result if !store_result.success?
+          credit_card_or_vault_id = store_result.params["payment_method_token"]
+        end
+        authorize = Samurai::Processor.authorize(credit_card_or_vault_id, money, {:billing_reference =>   options[:billing_reference],:customer_reference =>  options[:customer_reference],:custom => options[:custom],:descriptor => options[:descriptor]})
+        handle_result(authorize)
+      end
+      
+      def void(money, credit_card_or_vault_id, options = {})
+        void = Samurai::Processor.void(credit_card_or_vault_id, money, {:billing_reference =>   options[:billing_reference],:customer_reference =>  options[:customer_reference],:custom => options[:custom],:descriptor => options[:descriptor]})
+        handle_result(void)
+      end
+      
+      def handle_result(result)
+        response_params, response_options, avs_result, cvv_result = {}, {}, {}, {}
+        if result.success?
+          response_params[:reference_id] = result.reference_id
+          response_params[:authorization] = result.reference_id
+          response_params[:transaction_token] = result.transaction_token
+          response_params[:payment_method_token] = result.payment_method.payment_method_token
+        end
+        #need tohandle cvv here
+        
+        response_options[:avs_result] = {
+          :code => result.processor_response.avs_result_code
+        }
+        message = message_from_result(result)            
+        response = Response.new(result.success?, message, response_params, response_options)
+      end
+      
+      def store(creditcard, options = {})
+          options[:billing_address] ||= {}
+          result = Samurai::PaymentMethod.create(
+                          :card_number => creditcard.number,
+                          :expiry_month => creditcard.month.to_s.rjust(2, "0"), 
+                          :expiry_year => creditcard.year.to_s,
+                          :cvv=> creditcard.verification_value, 
+                          :first_name => creditcard.first_name, 
+                          :last_name => creditcard.last_name,
+                          :address_1 => options[:billing_address][:address1], 
+                          :address_2 => options[:billing_address][:address2], 
+                          :city => options[:billing_address][:state], 
+                          :zip => options[:billing_address][:zip], 
+                          :country => options[:billing_address][:country],
+                          :sandbox => options[:sandbox]
+                  )
+            response = Response.new(result.is_sensitive_data_valid, message_from_result(result), {:payment_method_token => ((result.payment_method_token) if result.is_sensitive_data_valid)})
+      end
+      
+      def message_from_result(result)
+        if result.success?
+          "OK"
+        else
+          result.errors.full_messages.join(", ")
+        end
+      end
+      
+    end
+  end 
+end     

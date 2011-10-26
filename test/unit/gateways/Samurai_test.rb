@@ -3,25 +3,36 @@ require 'test_helper'
 class SamuraiTest < Test::Unit::TestCase
   def setup
     @gateway = SamuraiGateway.new(
-                 :login => 'login',
-                 :password => 'password'
+              :merchant_key => "MERCHANT KEY", 
+              :merchant_password => "MERCHANT_PASSWORD", 
+              :processor_token => "PROCESSOR_TOKEN"
                )
 
-    @credit_card = credit_card
+
+    @sucessful_credit_card = credit_card
+    @sucessful_payment_method_token = generate_successful_token
+    
     @amount = 100
     
     @options = { 
-      :order_id => '1',
-      :billing_address => address,
-      :description => 'Store Purchase'
+       :billing_reference =>   "billing_reference",
+       :customer_reference =>  "customer_reference",
+       :custom => "custom",
+       :descriptor => "descriptor"
     }
+    
+    
   end
   
-  def test_successful_purchase
-    @gateway.expects(:ssl_post).returns(successful_purchase_response)
+  
+  def test_successful_purchase_with_payment_method_token    
+    result = Samurai::Processor.expects(:purchase).
+              with(@sucessful_payment_method_token, @amount,@options ).
+              returns(successful_purchase_response)
     
-    assert response = @gateway.purchase(@amount, @credit_card, @options)
-    assert_instance_of 
+    
+    response = @gateway.purchase(@amount, @sucessful_payment_method_token, @options)
+    assert_instance_of Samurai::Transaction, response
     assert_success response
     
     # Replace with authorization number from the successful response
@@ -41,6 +52,14 @@ class SamuraiTest < Test::Unit::TestCase
   
   # Place raw successful response from gateway here
   def successful_purchase_response
+    
+      payment_method = Samurai::PaymentMethod.new(:payment_method_token => "payment_method_token")
+      processor_response = Samurai::ProcessorResponse.new(:avs_result_code => "Y")
+      transaction = Samurai::Transaction.new(:reference_id => "reference_id",
+                  :transaction_token => "transaction_token",
+                  :payment_method => payment_method,
+                  :processor_response => processor_response
+                  )
   end
   
   # Place raw failed response from gateway here

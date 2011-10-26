@@ -387,6 +387,12 @@ realex_mastercard_coms_error:
   year: '2020'
   verification_value: '123'
 
+samurai:
+  merchant_id: X
+  public_key: Y
+  private_key: Z
+
+
 sage:
   login: login
   password: password
