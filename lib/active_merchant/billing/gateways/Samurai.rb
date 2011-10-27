@@ -19,8 +19,7 @@ module ActiveMerchant #:nodoc:
       
       def initialize(options = {})
         requires!(options, :merchant_key, :merchant_password, :processor_token)
-        @api_key = options[:login]
-        
+        @sandbox = options[:sandbox] || false
         Samurai.options = {
           :merchant_key => options[:merchant_key], 
           :merchant_password => options[:merchant_password], 
@@ -41,7 +40,7 @@ module ActiveMerchant #:nodoc:
       
       def capture(money, authorization_id, options = {})
         authorization = Samurai::Transaction.find(authorization_id)  # get the authorization created previously
-        capture = money.nil? ? @capture = authorization.capture : authorization.capture(money)  
+        capture = money.nil? ? authorization.capture : authorization.capture(money)  
         handle_result(capture)
       end
             
@@ -61,18 +60,18 @@ module ActiveMerchant #:nodoc:
         handle_result(authorize)
       end
       
-      def void(money, credit_card_or_vault_id, options = {})
-        void = Samurai::Processor.void(credit_card_or_vault_id, money, {:billing_reference =>   options[:billing_reference],:customer_reference =>  options[:customer_reference],:custom => options[:custom],:descriptor => options[:descriptor]})
+      def void(money, transaction_id, options = {})
+        void = Samurai::Processor.void(transaction_id, money, {:billing_reference =>   options[:billing_reference],:customer_reference =>  options[:customer_reference],:custom => options[:custom],:descriptor => options[:descriptor]})
         handle_result(void)
       end
       
       def handle_result(result)
         response_params, response_options, avs_result, cvv_result = {}, {}, {}, {}
         if result.success?
-          response_params[:reference_id] = result.reference_id
-          response_params[:authorization] = result.reference_id
-          response_params[:transaction_token] = result.transaction_token
-          response_params[:payment_method_token] = result.payment_method.payment_method_token
+          response_options[:reference_id] = result.reference_id
+          response_options[:authorization] = result.reference_id
+          response_options[:transaction_token] = result.transaction_token
+          response_options[:payment_method_token] = result.payment_method.payment_method_token
         end
         #need tohandle cvv here
         
@@ -97,8 +96,9 @@ module ActiveMerchant #:nodoc:
                           :city => options[:billing_address][:state], 
                           :zip => options[:billing_address][:zip], 
                           :country => options[:billing_address][:country],
-                          :sandbox => options[:sandbox]
+                          :sandbox => @sandbox
                   )
+                  
             response = Response.new(result.is_sensitive_data_valid, message_from_result(result), {:payment_method_token => ((result.payment_method_token) if result.is_sensitive_data_valid)})
       end
       
