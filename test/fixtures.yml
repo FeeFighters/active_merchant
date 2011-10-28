@@ -387,6 +387,12 @@ realex_mastercard_coms_error:
   year: '2020'
   verification_value: '123'
 
+samurai:
+  merchant_key: '197199ef0872afd92c39ceb0'
+  merchant_password: '663b6c16fe50179d7f771c5d'
+  processor_token: '6e340c55559335bf73c8de29'
+  sandbox: true
+
 sage:
   login: login
   password: password
