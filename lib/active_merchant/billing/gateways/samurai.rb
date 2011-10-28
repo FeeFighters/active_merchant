@@ -8,9 +8,8 @@ end
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
     class SamuraiGateway < Gateway
-      LIVE_URL = 'https://api.samurai.feefighters.com/v1'
-      
-      self.homepage_url = 'http://samurai.feefighters.com'
+
+      self.homepage_url = 'https://samurai.feefighters.com'
       self.display_name = 'Samurai'
       self.supported_countries = ['US']
       self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :diners_club]
@@ -26,8 +25,7 @@ module ActiveMerchant #:nodoc:
           :processor_token => options[:processor_token]
         }
       end
-      
-      
+
       def purchase(money, credit_card_or_vault_id, options = {})
         if credit_card_or_vault_id.is_a?(ActiveMerchant::Billing::CreditCard)
           store_result = store(credit_card_or_vault_id, options)
@@ -73,33 +71,33 @@ module ActiveMerchant #:nodoc:
           response_options[:transaction_token] = result.transaction_token
           response_options[:payment_method_token] = result.payment_method.payment_method_token
         end
-        #need tohandle cvv here
-        
-        response_options[:avs_result] = {
-          :code => result.processor_response.avs_result_code
-        }
+
+        # TODO: handle cvv here
+        response_options[:avs_result] = { :code => result.processor_response.avs_result_code }
         message = message_from_result(result)            
         response = Response.new(result.success?, message, response_params, response_options)
       end
       
       def store(creditcard, options = {})
           options[:billing_address] ||= {}
-          result = Samurai::PaymentMethod.create(
-                          :card_number => creditcard.number,
-                          :expiry_month => creditcard.month.to_s.rjust(2, "0"), 
-                          :expiry_year => creditcard.year.to_s,
-                          :cvv=> creditcard.verification_value, 
-                          :first_name => creditcard.first_name, 
-                          :last_name => creditcard.last_name,
-                          :address_1 => options[:billing_address][:address1], 
-                          :address_2 => options[:billing_address][:address2], 
-                          :city => options[:billing_address][:state], 
-                          :zip => options[:billing_address][:zip], 
-                          :country => options[:billing_address][:country],
-                          :sandbox => @sandbox
-                  )
+
+          result = Samurai::PaymentMethod.create({
+            :card_number  => creditcard.number,
+            :expiry_month => creditcard.month.to_s.rjust(2, "0"),
+            :expiry_year  => creditcard.year.to_s,
+            :cvv          => creditcard.verification_value,
+            :first_name   => creditcard.first_name,
+            :last_name    => creditcard.last_name,
+            :address_1    => options[:billing_address][:address1],
+            :address_2    => options[:billing_address][:address2],
+            :city         => options[:billing_address][:state],
+            :zip          => options[:billing_address][:zip],
+            :sandbox      => @sandbox
+          })
                   
-            response = Response.new(result.is_sensitive_data_valid, message_from_result(result), {:payment_method_token => ((result.payment_method_token) if result.is_sensitive_data_valid)})
+          Response.new(result.is_sensitive_data_valid,
+                       message_from_result(result),
+                       { :payment_method_token => result.is_sensitive_data_valid && result.payment_method_token })
       end
       
       def message_from_result(result)
@@ -112,4 +110,4 @@ module ActiveMerchant #:nodoc:
       
     end
   end 
-end     
+end
