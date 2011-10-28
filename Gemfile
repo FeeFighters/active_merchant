@@ -1,5 +1,4 @@
 source :rubygems
-gem 'samurai'
 gemspec
 
 group :test do
