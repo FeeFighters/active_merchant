@@ -32,7 +32,14 @@ module ActiveMerchant #:nodoc:
           return store_result if !store_result.success?
           credit_card_or_vault_id = store_result.params["payment_method_token"]
         end
-        result = Samurai::Processor.purchase(credit_card_or_vault_id, money, {:billing_reference =>   options[:billing_reference],:customer_reference =>  options[:customer_reference],:custom => options[:custom],:descriptor => options[:descriptor]})
+        result = Samurai::Processor.purchase(credit_card_or_vault_id,
+                                             money,
+                                             {
+                                               :billing_reference   => options[:billing_reference],
+                                               :customer_reference  => options[:customer_reference],
+                                               :custom              => options[:custom],
+                                               :descriptor          => options[:descriptor],
+                                             })
         handle_result(result)
       end
       
