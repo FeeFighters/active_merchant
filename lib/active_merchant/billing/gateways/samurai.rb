@@ -1,10 +1,3 @@
-begin  
-  require 'samurai'
-rescue LoadError
-  raise "Could not load the samurai gem.  Use `gem install samurai` to install it."
-end
-
-
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
     class SamuraiGateway < Gateway
@@ -17,6 +10,12 @@ module ActiveMerchant #:nodoc:
       self.money_format = :cents
       
       def initialize(options = {})
+        begin
+          require 'samurai'
+        rescue LoadError
+          raise "Could not load the samurai gem (>= 0.2.24).  Use `gem install samurai` to install it."
+        end
+
         requires!(options, :merchant_key, :merchant_password, :processor_token)
         @sandbox = options[:sandbox] || false
         Samurai.options = {
