@@ -8,6 +8,8 @@ class RemoteSamuraiTest < Test::Unit::TestCase
     
     @amount = 100
     @declined_amount = 100.02
+    @invalid_card_amount = 100.07
+    @expired_card_amount = 100.08
     @credit_card = credit_card('4111111111111111', :verification_value => '111')
 
     @options = {
@@ -26,10 +28,22 @@ class RemoteSamuraiTest < Test::Unit::TestCase
     assert_equal 'OK', response.message
   end
 
-  def test_unsuccessful_purchase
+  def test_declined_purchase
     assert response = @gateway.purchase(@declined_amount, @credit_card, @options)
     assert_failure response
-    assert_equal 'Processor transaction declined', response.message
+    assert_equal 'The card was declined.', response.message
+  end
+
+  def test_invalid_purchase
+    assert response = @gateway.purchase(@invalid_card_amount, @credit_card, @options)
+    assert_failure response
+    assert_equal 'The card number was invalid.', response.message
+  end
+
+  def test_expired_purchase
+    assert response = @gateway.purchase(@expired_card_amount, @credit_card, @options)
+    assert_failure response
+    assert_equal 'The expiration date month was invalid, or prior to today.', response.message
   end
 
   def test_successful_auth_and_capture

@@ -81,7 +81,7 @@ module ActiveMerchant #:nodoc:
         # TODO: handle cvv here
         response_options[:avs_result] = { :code => result.processor_response.avs_result_code }
         message = message_from_result(result)            
-        response = Response.new(result.success?, message, response_params, response_options)
+        Response.new(result.success?, message, response_params, response_options)
       end
       
       def store(creditcard, options = {})
@@ -110,7 +110,7 @@ module ActiveMerchant #:nodoc:
         if result.success?
           "OK"
         else
-          result.errors.full_messages.join(", ")
+          result.errors.map {|_, messages| [messages].flatten.first }.first
         end
       end
       
